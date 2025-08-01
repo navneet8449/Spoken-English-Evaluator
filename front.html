@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Spoken English Evaluator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(to right, #0f172a, #1e293b);
+      color: #e2e8f0;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .container {
+      background: rgba(255, 255, 255, 0.05);
+      padding: 50px;
+      border-radius: 20px;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+      max-width: 700px;
+      width: 90%;
+      text-align: center;
+      backdrop-filter: blur(10px);
+    }
+    h1 {
+      font-size: 32px;
+      color: #38bdf8;
+      margin-bottom: 25px;
+    }
+    input[type="file"] {
+      background-color: #1e293b;
+      color: #e2e8f0;
+      padding: 12px;
+      border-radius: 6px;
+      border: 2px dashed #334155;
+      margin-top: 15px;
+      width: 100%;
+      cursor: pointer;
+    }
+    button {
+      background-color: #38bdf8;
+      color: #0f172a;
+      padding: 14px 24px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 25px;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #0ea5e9;
+    }
+    #result {
+      margin-top: 40px;
+      padding: 25px;
+      background-color: #0f172a;
+      border-radius: 12px;
+      display: none;
+      text-align: left;
+      border: 1px solid #334155;
+    }
+    .loader {
+      margin-top: 30px;
+      display: none;
+    }
+    .loader span {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      margin: 4px;
+      background-color: #38bdf8;
+      border-radius: 50%;
+      animation: bounce 0.6s infinite alternate;
+    }
+    .loader span:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+    .loader span:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+    @keyframes bounce {
+      to {
+        transform: translateY(-10px);
+      }
+    }
+    .score-bar {
+      background-color: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 5px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+    .score-bar-fill {
+      height: 24px;
+      background-color: #38bdf8;
+      width: 0;
+      text-align: right;
+      padding-right: 8px;
+      color: #0f172a;
+      font-weight: bold;
+      font-size: 14px;
+      transition: width 0.6s ease-in-out;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>AI Spoken English Evaluator</h1>
+    <p>Select an English audio file:</p>
+    <input type="file" id="audioFile" accept="audio/*" />
+    <br />
+    <button onclick="submitAudio()">🎯 Evaluate</button>
+
+    <div class="loader" id="loader">
+      <span></span><span></span><span></span>
+      <p>Analyzing your speech...</p>
+    </div>
+
+    <div id="result">
+      <h3> Results:</h3>
+      <p><strong>Transcript:</strong> <span id="transcript"></span></p>
+      <p><strong>Duration:</strong> <span id="duration"></span> sec</p>
+      <p><strong>Word Count:</strong> <span id="wordCount"></span></p>
+      <p><strong>WPM:</strong> <span id="wpm"></span></p>
+      <p><strong>Grammar Score:</strong></p>
+      <div class="score-bar"><div class="score-bar-fill" id="grammarScoreBar">0%</div></div>
+      <p><strong>Fluency Score:</strong></p>
+      <div class="score-bar"><div class="score-bar-fill" id="fluencyScoreBar">0%</div></div>
+      <button onclick="downloadTranscript()">⬇️ Download Transcript</button>
+    </div>
+  </div>
+
+  <script>
+    async function submitAudio() {
+      const input = document.getElementById("audioFile");
+      const file = input.files[0];
+      const loader = document.getElementById("loader");
+      const result = document.getElementById("result");
+
+      if (!file) {
+        alert("Please select an audio file first.");
+        return;
+      }
+
+      loader.style.display = "block";
+      result.style.display = "none";
+
+      const formData = new FormData();
+      formData.append("audio", file);
+
+      try {
+        const response = await fetch("http://127.0.0.1:5000/transcribe", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await response.json();
+
+        document.getElementById("transcript").textContent = data.transcript;
+        document.getElementById("duration").textContent = data.duration.toFixed(2);
+        document.getElementById("wordCount").textContent = data.word_count;
+        document.getElementById("wpm").textContent = data.wpm.toFixed(2);
+
+        updateScoreBar("grammarScoreBar", data.grammar_score);
+        updateScoreBar("fluencyScoreBar", data.fluency_score);
+
+        loader.style.display = "none";
+        result.style.display = "block";
+
+      } catch (error) {
+        loader.style.display = "none";
+        alert("Error uploading file. Make sure Flask server is running.");
+      }
+    }
+
+    function updateScoreBar(id, score) {
+      const bar = document.getElementById(id);
+      const percent = Math.min(100, Math.max(0, score * 10));
+      bar.style.width = percent + "%";
+      bar.textContent = score.toFixed(1) + "/10";
+    }
+
+    function downloadTranscript() {
+      const text = document.getElementById("transcript").textContent;
+      const blob = new Blob([text], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "transcript.txt";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>
